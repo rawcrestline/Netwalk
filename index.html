@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>NETWALK</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+:root{--bg:#f6f8f5;--card:#fff;--ink:#12261c;--mut:#5d6f65;--g:#0a7d45;--g2:#e3f3ea;--red:#b3261e;--bd:#dce5df}
+@media(prefers-color-scheme:dark){:root{--bg:#0e1612;--card:#16221b;--ink:#e8f1ec;--mut:#9fb2a8;--g:#3fcf87;--g2:#1d3a2b;--bd:#27382f;--red:#ff8a80}}
+*{box-sizing:border-box}body{margin:0;font:16px/1.45 system-ui,sans-serif;background:var(--bg);color:var(--ink);padding-bottom:70px}
+main{max-width:720px;margin:0 auto;padding:16px}h1,h2{margin:.2em 0}.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin:12px 0}
+.big{font-size:2rem;font-weight:800;color:var(--g)}.mut{color:var(--mut);font-size:.9rem}
+button,.btn{background:var(--g);color:#fff;border:0;border-radius:10px;padding:11px 16px;font:inherit;font-weight:600;cursor:pointer}
+button.alt{background:var(--g2);color:var(--g)}button:disabled{opacity:.5}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--g);outline-offset:2px}
+input,select{width:100%;padding:11px;margin:6px 0;border:1px solid var(--bd);border-radius:10px;font:inherit;background:var(--card);color:var(--ink)}
+nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--bd);display:flex;overflow-x:auto;padding-bottom:env(safe-area-inset-bottom)}
+nav a{flex:1;min-width:64px;text-align:center;padding:12px 6px;color:var(--mut);text-decoration:none;font-size:.8rem}nav a.on{color:var(--g);font-weight:700}
+@media(min-width:1024px){nav{top:0;bottom:auto;border:0;border-bottom:1px solid var(--bd);justify-content:center}body{padding:70px 0 0}nav a{flex:none;padding:16px 18px;font-size:.95rem}}
+.row{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--bd)}.row:last-child{border:0}
+#toast{position:fixed;top:12px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;z-index:9;display:none;max-width:90%}
+.sk{height:60px;border-radius:12px;background:var(--bd);opacity:.6}.err{color:var(--red)}
+</style></head><body>
+<div id="toast" role="status"></div><div id="nav"></div><main id="app"><div class="sk"></div></main>
+<script>
+// Public anon key only. NEVER put a service-role key here.
+const SUPABASE_URL="https://YOUR-PROJECT.supabase.co", SUPABASE_ANON_KEY="YOUR-ANON-KEY";
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+const $=s=>document.querySelector(s),app=$('#app');let me=null,prof=null,busy=false;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pts=n=>Number(n||0).toLocaleString('en-NG'),ngn=p=>'₦'+(p/100).toLocaleString('en-NG',{minimumFractionDigits:0,maximumFractionDigits:2});
+const toast=(m,bad)=>{const t=$('#toast');t.textContent=m;t.style.display='block';t.style.background=bad?'#b3261e':'';t.style.color=bad?'#fff':'';setTimeout(()=>t.style.display='none',3500)};
+const msg=e=>{const m=(e&&e.message)||'Something went wrong';return /fetch|network/i.test(m)?'Network problem. Check your connection and retry.':/JWT|not signed/i.test(m)?'Session expired. Please sign in again.':m};
+async function run(fn,ok){if(busy)return;busy=true;try{const r=await Promise.race([fn(),new Promise((_,j)=>setTimeout(()=>j(new Error('Request timed out. Try again.')),15000))]);if(r&&r.error)throw r.error;if(ok)toast(ok);return r}catch(e){toast(msg(e),true)}finally{busy=false}}
+const rpc=(n,a)=>sb.rpc(n,a||{});
+const routes={home,daily,walk,missions,referrals,wallet,withdraw,notifs,admin};
+function drawNav(){const l=[['home','Home'],['daily','Daily'],['walk','Walk'],['missions','Missions'],['referrals','Invite'],['wallet','Wallet'],['withdraw','Cash out'],['notifs','Alerts']];
+ if(prof?.role==='admin')l.push(['admin','Admin']);const cur=location.hash.slice(1)||'home';
+ $('#nav').innerHTML=me?`<nav>${l.map(([k,t])=>`<a href="#${k}" class="${cur===k?'on':''}">${t}</a>`).join('')}<a href="#" id="lo">Log out</a></nav>`:'';
+ const lo=$('#lo');if(lo)lo.onclick=async e=>{e.preventDefault();await sb.auth.signOut()}}
+async function route(){if(!me)return authView();const k=location.hash.slice(1)||'home';drawNav();app.innerHTML='<div class="sk"></div><div class="sk" style="margin-top:12px"></div>';
+ try{await (routes[k]||home)()}catch(e){app.innerHTML=`<div class="card err">${esc(msg(e))} <button onclick="route()">Retry</button></div>`}}
+async function q(p){const r=await p;if(r.error)throw r.error;return r.data}
+function authView(mode='login',note=''){const reg=mode==='register',fg=mode==='forgot',rs=mode==='reset';const ref=new URLSearchParams(location.search).get('ref')||'';
+ app.innerHTML=`<h1>NETWALK</h1><p class="mut">Walk. Earn points. Cash out in naira. 100 points = ₦1.</p><form class="card" id="f" novalidate><h2>${rs?'Set new password':fg?'Reset password':reg?'Create account':'Sign in'}</h2>
+ ${note?`<p class="mut">${esc(note)}</p>`:''}${reg?'<input id="n" placeholder="Full name" autocomplete="name" required>':''}
+ ${rs?'':'<input id="e" type="email" placeholder="Email" autocomplete="email" required>'}${fg?'':`<input id="p" type="password" placeholder="${rs?'New password':'Password'} (min 8 characters)" autocomplete="${reg||rs?'new-password':'current-password'}" required>`}
+ ${reg?`<input id="r" placeholder="Referral code (optional)" value="${esc(ref)}">`:''}<p id="er" class="err" role="alert"></p><button id="go">${rs?'Update password':fg?'Send reset link':reg?'Register':'Sign in'}</button>
+ <p>${mode==='login'?'<a href="#" data-m="register">Create account</a> · <a href="#" data-m="forgot">Forgot password?</a>':'<a href="#" data-m="login">Back to sign in</a>'}</p>
+ <p class="mut">By continuing you accept our <a href="#" data-m="terms">Terms</a> and <a href="#" data-m="privacy">Privacy Policy</a>.</p></form>`;
+ app.querySelectorAll('[data-m]').forEach(a=>a.onclick=e=>{e.preventDefault();const m=a.dataset.m;m==='terms'||m==='privacy'?legal(m):authView(m)});
+ $('#f').onsubmit=async e=>{e.preventDefault();const er=$('#er');er.textContent='';const v=id=>($('#'+id)?.value||'').trim();
+  if(!rs&&!/^\S+@\S+\.\S+$/.test(v('e')))return er.textContent='Enter a valid email.';if(!fg&&v('p').length<8)return er.textContent='Password must be at least 8 characters.';if(reg&&!v('n'))return er.textContent='Enter your name.';
+  const b=$('#go');b.disabled=true;
+  const r=await run(async()=>rs?sb.auth.updateUser({password:v('p')}):fg?sb.auth.resetPasswordForEmail(v('e'),{redirectTo:location.origin+location.pathname}):reg?sb.auth.signUp({email:v('e'),password:v('p'),options:{data:{full_name:v('n'),ref:v('r')}}}):sb.auth.signInWithPassword({email:v('e'),password:v('p')}));
+  b.disabled=false;if(!r)return;
+  if(fg)authView('login','If that email exists, a reset link is on its way.');else if(reg&&!r.data.session)authView('login','Check your email to confirm your account, then sign in.');else if(rs){toast('Password updated');location.hash='home'}}}
+function legal(k){app.innerHTML=`<div class="card"><h2>${k==='terms'?'Terms of Service':'Privacy Policy'}</h2><p>${k==='terms'?'Points have no cash value until a withdrawal is approved and paid by NETWALK. Fraud, duplicate accounts or automated activity lead to forfeited points and suspension. Withdrawals are reviewed manually.':'We store your account details, step totals, wallet activity and bank details you add, only to run the service and prevent fraud. We do not sell your data.'}</p><button class="alt" onclick="route()">Back</button></div>`}
+async function loadProf(){prof=me?await q(sb.from('profiles').select('*').eq('id',me.id).single()):null}
+async function home(){const [w,n]=await Promise.all([q(sb.from('wallets').select('*').eq('user_id',me.id).single()),q(sb.from('notifications').select('id').eq('read',false))]);
+ if(prof.status==='suspended'){app.innerHTML='<div class="card err">Your account is suspended. Contact support.</div>';return}
+ app.innerHTML=`<h1>Hi ${esc(prof.full_name||'there')}</h1><div class="card"><div class="mut">Available balance</div><div class="big">${pts(w.balance_points)} pts</div><div>${ngn(w.balance_points)}</div>
+ <p class="mut">Earned ${pts(w.total_earned)} · Withdrawn ${pts(w.total_withdrawn)}</p></div><div class="card"><b>${n.length}</b> unread alerts. <a href="#daily">Claim today's reward</a> or <a href="#walk">log your steps</a>.</div>
+ <p><a href="#" id="t">Terms</a> · <a href="#" id="pv">Privacy</a> · <a href="#" id="h">Help</a></p>`;
+ $('#t').onclick=e=>{e.preventDefault();legal('terms')};$('#pv').onclick=e=>{e.preventDefault();legal('privacy')};$('#h').onclick=e=>{e.preventDefault();app.innerHTML='<div class="card"><h2>Help</h2><p>Rewards post instantly. Withdrawals are reviewed by an admin, then paid to your bank. Minimum ₦500.</p><button class="alt" onclick="route()">Back</button></div>'}}
+async function daily(){const [rw,cl]=await Promise.all([q(sb.from('daily_rewards').select('*').order('day_no')),q(sb.from('daily_reward_claims').select('*').order('claim_date',{ascending:false}).limit(1))]);
+ const l=cl[0],today=new Date().toLocaleDateString('en-CA'),yest=new Date(Date.now()-864e5).toLocaleDateString('en-CA'),done=l&&l.claim_date===today;
+ const streak=l&&(done||l.claim_date===yest)?l.streak:0,next=done?streak+1:streak+1,nd=((next-1)%7)+1;
+ app.innerHTML=`<h1>Daily reward</h1><div class="card"><div class="big">${streak} day streak</div><p>${done?'Claimed today. Next reward: '+pts(rw[nd-1].points)+' pts tomorrow.':"Today's reward: <b>"+pts(rw[nd-1].points)+' pts</b>'}</p>
+ <button id="c" ${done?'disabled':''}>${done?'Claimed':'Claim reward'}</button></div><div class="card">${rw.map(r=>`<div class="row"><span>Day ${r.day_no}</span><b>${r.points} pts</b></div>`).join('')}</div>`;
+ $('#c').onclick=async()=>{if(await run(()=>rpc('claim_daily_reward'),'Reward claimed'))route()}}
+async function walk(){const s=await q(sb.from('step_activity').select('*').eq('day',new Date().toLocaleDateString('en-CA')));const ms=await q(sb.from('step_milestones').select('*').order('steps'));const st=s[0]?.steps||0;
+ app.innerHTML=`<h1>Walk</h1><div class="card"><div class="big">${pts(st)} steps today</div><p class="mut">Steps will sync automatically from Apple Health and Android Health Connect in the NETWALK mobile app. Browsers cannot read phone step counters.</p></div>
+ <div class="card">${ms.map(m=>`<div class="row"><span>${pts(m.steps)}${m.steps>=15000?'+':''} steps</span><b>${st>=m.steps?'✓ ':''}${m.points} pts/day total</b></div>`).join('')}</div>
+ <form class="card" id="f"><b>Development simulator</b><p class="mut">Only works while the admin "dev_simulator" setting is on. Server caps steps and daily points.</p><input id="s" type="number" min="0" placeholder="Steps today"><button>Submit steps</button></form>`;
+ $('#f').onsubmit=async e=>{e.preventDefault();const v=parseInt($('#s').value,10);if(!(v>=0))return toast('Enter a valid number',true);const r=await run(()=>rpc('sync_steps',{p_steps:v}));if(r){toast(r.data.earned?`+${r.data.earned} points`:'Steps saved');route()}}}
+async function missions(){const [m,c]=await Promise.all([q(sb.from('missions').select('*').eq('active',true)),q(sb.from('mission_completions').select('mission_id'))]);const d=new Set(c.map(x=>x.mission_id));
+ app.innerHTML='<h1>Missions</h1>'+(m.length?m.map(x=>`<div class="card"><b>${esc(x.title)}</b><p class="mut">${esc(x.description||'')}</p><div class="row"><span>${x.reward_points} pts</span><button data-id="${x.id}" ${d.has(x.id)?'disabled':''}>${d.has(x.id)?'Done':'Complete'}</button></div></div>`).join(''):'<div class="card">No missions right now. Check back soon.</div>');
+ app.querySelectorAll('button[data-id]').forEach(b=>b.onclick=async()=>{if(await run(()=>rpc('complete_mission',{p_mission:b.dataset.id}),'Mission completed'))route()})}
+async function referrals(){const r=await q(sb.from('referrals').select('*').eq('referrer_id',me.id));const link=location.origin+location.pathname+'?ref='+prof.referral_code;
+ app.innerHTML=`<h1>Invite friends</h1><div class="card"><div class="big">${esc(prof.referral_code)}</div><p class="mut">You get 500 pts and they get 100 pts once they claim a daily reward and log 1,000 steps.</p><button id="s">Share invite</button></div>
+ <div class="card"><b>${r.filter(x=>x.status==='qualified').length}</b> qualified · <b>${r.filter(x=>x.status==='pending').length}</b> pending</div>`;
+ $('#s').onclick=async()=>{try{navigator.share?await navigator.share({title:'NETWALK',text:'Join NETWALK and earn while you walk',url:link}):(await navigator.clipboard.writeText(link),toast('Link copied'))}catch(e){}}}
+async function wallet(){const [w,t]=await Promise.all([q(sb.from('wallets').select('*').eq('user_id',me.id).single()),q(sb.from('wallet_transactions').select('*').order('created_at',{ascending:false}).limit(50))]);
+ app.innerHTML=`<h1>Wallet</h1><div class="card"><div class="big">${pts(w.balance_points)} pts</div><div>${ngn(w.balance_points)}</div></div><div class="card">${t.length?t.map(x=>`<div class="row"><span>${esc(x.type.replace(/_/g,' '))}<br><span class="mut">${new Date(x.created_at).toLocaleString('en-NG')} · ${esc(x.status)}</span></span><b>${x.points>0?'+':''}${pts(x.points)}</b></div>`).join(''):'No transactions yet. Claim your daily reward to start.'}</div>`}
+async function withdraw(){const [b,w,wl]=await Promise.all([q(sb.from('bank_accounts').select('*')),q(sb.from('withdrawals').select('*').order('created_at',{ascending:false}).limit(20)),q(sb.from('wallets').select('*').eq('user_id',me.id).single())]);
+ app.innerHTML=`<h1>Cash out</h1><p class="mut">Available ${ngn(wl.balance_points)}. Minimum ₦500. Payments are made after admin review.</p>
+ <form class="card" id="f"><select id="b">${b.map(x=>`<option value="${x.id}">${esc(x.bank_name)} ${esc(x.account_number)}</option>`).join('')||'<option value="">Add a bank account first</option>'}</select>
+ <select id="a">${[500,1000,2000,5000].map(n=>`<option>${n}</option>`).join('')}</select><button>Review withdrawal</button></form>
+ <form class="card" id="bf"><b>Add bank account</b><input id="bn" placeholder="Bank name" required><input id="an" placeholder="10-digit account number" inputmode="numeric" maxlength="10" required><input id="ac" placeholder="Account name" required><button class="alt">Save account</button></form>
+ <div class="card"><b>History</b>${wl&&w.length?w.map(x=>`<div class="row"><span>${ngn(x.points)}<br><span class="mut">${new Date(x.created_at).toLocaleDateString('en-NG')}</span></span><b>${esc(x.status)}</b></div>`).join(''):'<p class="mut">No withdrawals yet.</p>'}</div>`;
+ $('#bf').onsubmit=async e=>{e.preventDefault();const a=$('#an').value.trim();if(!/^\d{10}$/.test(a))return toast('Account number must be 10 digits',true);
+  if(await run(()=>sb.from('bank_accounts').insert({user_id:me.id,bank_name:$('#bn').value.trim(),account_number:a,account_name:$('#ac').value.trim()}),'Bank account saved'))route()};
+ $('#f').onsubmit=async e=>{e.preventDefault();const bank=$('#b').value,amt=+$('#a').value;if(!bank)return toast('Add a bank account first',true);
+  if(!confirm(`Withdraw ₦${amt.toLocaleString('en-NG')} (${pts(amt*100)} points)? It will be pending until an admin processes it.`))return;
+  if(await run(()=>rpc('request_withdrawal',{p_naira:amt,p_bank:bank,p_key:crypto.randomUUID()}),'Withdrawal submitted for review'))route()}}
+async function notifs(){const n=await q(sb.from('notifications').select('*').order('created_at',{ascending:false}).limit(50));
+ app.innerHTML=`<h1>Alerts</h1><button class="alt" id="m">Mark all read</button>${n.length?n.map(x=>`<div class="card" style="${x.read?'opacity:.6':''}"><b>${esc(x.title)}</b><p>${esc(x.body||'')}</p><span class="mut">${new Date(x.created_at).toLocaleString('en-NG')}</span></div>`).join(''):'<div class="card">Nothing here yet.</div>'}`;
+ $('#m').onclick=async()=>{if(await run(()=>rpc('mark_notifications_read')))route()}}
+async function admin(){if(prof.role!=='admin'){app.innerHTML='<div class="card err">Admins only.</div>';return}
+ const [s,u,w,f,m]=await Promise.all([rpc('admin_stats'),q(sb.from('profiles').select('id,email,status,created_at').order('created_at',{ascending:false}).limit(30)),q(sb.from('withdrawals').select('*').in('status',['pending','processing','approved'])),q(sb.from('fraud_events').select('*').eq('status','open').limit(20)),q(sb.from('missions').select('*'))]);
+ if(s.error)throw s.error;const d=s.data;
+ app.innerHTML=`<h1>Admin</h1><div class="card">${Object.entries(d).map(([k,v])=>`<div class="row"><span>${esc(k.replace(/_/g,' '))}</span><b>${pts(v)}</b></div>`).join('')}</div>
+ <div class="card"><b>Withdrawals</b>${w.map(x=>`<div class="row"><span>${ngn(x.points)} · ${esc(x.status)}</span><span><button data-w="${x.id}" data-s="completed">Paid</button> <button class="alt" data-w="${x.id}" data-s="rejected">Reject</button></span></div>`).join('')||'<p class="mut">None pending.</p>'}</div>
+ <div class="card"><b>Fraud</b>${f.map(x=>`<div class="row"><span>${esc(x.kind)} · ${esc(x.severity)}</span><button class="alt" data-f="${x.id}">Resolve</button></div>`).join('')||'<p class="mut">No open events.</p>'}</div>
+ <div class="card"><b>Users</b>${u.map(x=>`<div class="row"><span>${esc(x.email)}<br><span class="mut">${esc(x.status)}</span></span><span><button class="alt" data-u="${x.id}" data-st="${x.status==='suspended'?'active':'suspended'}">${x.status==='suspended'?'Reactivate':'Suspend'}</button> <button class="alt" data-u="${x.id}" data-st="flagged">Flag</button> <button class="alt" data-adj="${x.id}">Adjust</button></span></div>`).join('')}</div>
+ <div class="card"><b>Missions</b>${m.map(x=>`<div class="row"><span>${esc(x.title)} · ${x.reward_points} pts${x.active?'':' (off)'}</span><button class="alt" data-m="${x.id}">Edit</button></div>`).join('')}<button id="nm">New mission</button></div>`;
+ const go=(fn,ok)=>async()=>{if(await run(fn,ok))route()};
+ app.querySelectorAll('[data-w]').forEach(b=>b.onclick=go(()=>rpc('admin_set_withdrawal',{p_id:b.dataset.w,p_status:b.dataset.s,p_note:prompt('Note to user (optional)')||''}),'Updated'));
+ app.querySelectorAll('[data-f]').forEach(b=>b.onclick=go(()=>rpc('admin_resolve_fraud',{p_id:b.dataset.f,p_status:'resolved'}),'Resolved'));
+ app.querySelectorAll('[data-u]').forEach(b=>b.onclick=go(()=>rpc('admin_set_user_status',{p_user:b.dataset.u,p_status:b.dataset.st}),'Updated'));
+ app.querySelectorAll('[data-adj]').forEach(b=>b.onclick=go(()=>{const p=parseInt(prompt('Points (negative to deduct)'),10),r=prompt('Reason (required)');if(!p||!r)throw new Error('Points and reason are required');return rpc('admin_adjust',{p_user:b.dataset.adj,p_points:p,p_reason:r})},'Adjusted'));
+ const mm=(id,x)=>go(()=>{const t=prompt('Title',x?.title||''),r=parseInt(prompt('Reward points',x?.reward_points??10),10),k=prompt('Kind: steps, quiz, video, offer, challenge',x?.kind||'quiz');if(!t||isNaN(r))throw new Error('Title and reward are required');return rpc('admin_upsert_mission',{p_id:id,p_title:t,p_kind:k,p_reward:r,p_active:confirm('Active? OK = yes')})},'Saved');
+ app.querySelectorAll('[data-m]').forEach(b=>b.onclick=mm(b.dataset.m,m.find(x=>x.id===b.dataset.m)));$('#nm').onclick=mm(null,null)}
+sb.auth.onAuthStateChange(async(ev,ses)=>{me=ses?.user||null;if(ev==='PASSWORD_RECOVERY'){authView('reset','Choose a new password.');return}
+ try{await loadProf()}catch(e){prof=null}drawNav();route()});
+window.addEventListener('hashchange',route);
+</script></body></html>
