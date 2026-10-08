@@ -22,7 +22,7 @@ nav a{flex:1;min-width:64px;text-align:center;padding:12px 6px;color:var(--mut);
 <div id="toast" role="status"></div><div id="nav"></div><main id="app"><div class="sk"></div></main>
 <script>
 // Public anon key only. NEVER put a service-role key here.
-const SUPABASE_URL="https://YOUR-PROJECT.supabase.co", SUPABASE_ANON_KEY="YOUR-ANON-KEY";
+const SUPABASE_URL="https://rrwwoghnwfabqkqhgrsk.supabase.co", SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJyd3dvZ2hud2ZhYnFrcWhncnNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAzNTI1MzksImV4cCI6MjEwNTkyODUzOX0.86vkPZcoAhqWJEIOJLWlSGe1fRIARNUcp090LGWRjPo";
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
 const $=s=>document.querySelector(s),app=$('#app');let me=null,prof=null,busy=false;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
