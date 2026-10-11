@@ -6,8 +6,6 @@
 <meta name="theme-color" content="#080b16">
 <title>ZELTRIQ — Play Smart. Compete. Earn.</title>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
 <style>
 :root{
   --bg:#080b16;
@@ -59,6 +57,11 @@ a{color:var(--cyan)}
 }
 .error{color:#ff8b9e}
 .success{color:var(--green)}
+#authMessage{margin:8px 0;font-size:14px;line-height:1.45;word-break:break-word}
+#connStatus{font-size:12px;margin:8px 0;padding:8px 10px;border-radius:8px;background:#0b1120;border:1px solid var(--border)}
+details.setup{margin-top:14px;border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:#0d1426}
+details.setup summary{cursor:pointer;font-size:13px;color:var(--cyan)}
+details.setup textarea{font-size:12px}
 #auth{
   min-height:100vh;display:grid;place-items:center;padding:20px;
   background:radial-gradient(ellipse at top,#172955 0%,var(--bg) 65%);
@@ -151,6 +154,7 @@ footer{padding:20px;color:var(--muted);font-size:12px;text-align:center}
       Welcome to ZELTRIQ. Create your account or sign in to access your dashboard.
     </div>
 
+    <div id="connStatus" class="muted">Checking connection…</div>
     <div id="authMessage" aria-live="polite"></div>
 
     <form id="authForm">
@@ -173,6 +177,22 @@ footer{padding:20px;color:var(--muted);font-size:12px;text-align:center}
         Forgot password?
       </button>
     </form>
+
+    <details class="setup" id="setupBox">
+      <summary>Connection settings</summary>
+      <p class="small muted">
+        Paste your Supabase Project URL and the FULL anon / publishable key
+        (Supabase → Project Settings → API). Never use the service_role key.
+        This is stored only in this browser.
+      </p>
+      <label>Project URL</label>
+      <input id="cfgUrl" placeholder="https://xxxx.supabase.co" autocomplete="off">
+      <label>Anon / publishable key</label>
+      <textarea id="cfgKey" rows="4" placeholder="eyJ... (long, with two dots)  or  sb_publishable_..." autocomplete="off"></textarea>
+      <button type="button" id="saveCfg" style="width:100%">Save and reconnect</button>
+      <button type="button" id="clearCfg" class="btn-secondary" style="width:100%;margin-top:8px">Clear saved settings</button>
+    </details>
+
     <p class="small muted">
       By registering, you agree to the platform's terms and privacy policy.
     </p>
@@ -444,8 +464,12 @@ footer{padding:20px;color:var(--muted);font-size:12px;text-align:center}
 /*
   ZELTRIQ CONFIGURATION
 
-  Replace the two Supabase placeholders with your project's
-  Project URL and publishable/anon key.
+  EITHER paste your values below, OR leave them and use the
+  "Connection settings" box on the login screen (saved in this browser).
+
+  SUPABASE_KEY must be the FULL anon / publishable key:
+    - legacy anon key: three parts separated by dots, ~200+ characters
+    - new style: starts with sb_publishable_
 
   NEVER place a service_role or secret key in this file.
 */
@@ -455,6 +479,17 @@ const CONFIG = {
   WHATSAPP_NUMBER: "", // Example: 2348012345678
   SITE_URL: window.location.origin
 };
+
+/* Saved settings from the login-screen box override the values above */
+(function applySavedConfig(){
+  try{
+    const saved=JSON.parse(localStorage.getItem("zeltriq_cfg")||"null");
+    if(saved && saved.url && saved.key){
+      CONFIG.SUPABASE_URL=saved.url;
+      CONFIG.SUPABASE_KEY=saved.key;
+    }
+  }catch(e){}
+})();
 
 const $ = id => document.getElementById(id);
 
@@ -466,6 +501,13 @@ let currentMembership = null;
 let gameTimer = null;
 let gameState = {};
 let toastTimer = null;
+let whatsappBound = false;
+
+const LIB_URLS = [
+  "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2",
+  "https://unpkg.com/@supabase/supabase-js@2",
+  "https://cdnjs.cloudflare.com/ajax/libs/supabase-js/2.39.7/umd/supabase.min.js"
+];
 
 const GAME_LIST = [
   {id:"quiz",name:"Brain Quiz",icon:"🧠",description:"Test your knowledge and speed."},
@@ -474,6 +516,8 @@ const GAME_LIST = [
   {id:"memory",name:"Memory Match",icon:"🧩",description:"Remember and match symbols."},
   {id:"daily",name:"Daily Challenge",icon:"🏆",description:"Take on the daily challenge."}
 ];
+
+/* ---------- Helpers ---------- */
 
 function escapeHTML(value){
   return String(value ?? "").replace(/[&<>"']/g, c => ({
@@ -501,24 +545,84 @@ function showAuthMessage(message,isError=false){
 }
 
 function setBusy(button,busy,label){
+  if(!button) return;
   if(!button.dataset.originalText) button.dataset.originalText=button.textContent;
   button.disabled=busy;
   button.textContent=busy?label:button.dataset.originalText;
 }
 
-function readyConfig(){
-  if(!window.supabase){
-    showAuthMessage("Supabase library failed to load. Check your internet connection.",true);
+function submitButton(e){
+  return e.submitter || e.target.querySelector("button[type=submit]");
+}
+
+function keyLooksValid(key){
+  key=(key||"").trim();
+  if(!key || key.includes("PASTE")) return false;
+  if(key.startsWith("sb_publishable_")) return key.length>25;
+  const parts=key.split(".");
+  return parts.length===3 && parts.every(p=>p.length>5) && key.length>100;
+}
+
+function friendlyAuthError(error){
+  const msg=(error && error.message) || "Something went wrong.";
+  const low=msg.toLowerCase();
+  if(low.includes("invalid api key") || low.includes("apikey")){
+    return "Supabase rejected your API key. Open 'Connection settings' below and paste the FULL anon/publishable key.";
+  }
+  if(low.includes("email not confirmed")){
+    return "Your email is not confirmed yet. Open the confirmation email we sent, then sign in. (Or disable 'Confirm email' in Supabase → Authentication → Providers → Email.)";
+  }
+  if(low.includes("invalid login credentials")){
+    return "Wrong email or password. If you have not created an account yet, tap 'Create account'.";
+  }
+  if(low.includes("failed to fetch") || low.includes("networkerror") || low.includes("load failed")){
+    return "Cannot reach Supabase. Check your internet connection and that the Project URL is correct.";
+  }
+  if(low.includes("rate limit")){
+    return "Too many attempts. Please wait a minute and try again.";
+  }
+  return msg;
+}
+
+/* ---------- Supabase library + client ---------- */
+
+function loadScript(src){
+  return new Promise((resolve,reject)=>{
+    const s=document.createElement("script");
+    s.src=src;
+    s.onload=resolve;
+    s.onerror=()=>reject(new Error("Failed to load "+src));
+    document.head.appendChild(s);
+  });
+}
+
+const libReady=(async()=>{
+  for(const src of LIB_URLS){
+    if(window.supabase && window.supabase.createClient) return true;
+    try{ await loadScript(src); }catch(e){ console.warn(e.message); }
+    if(window.supabase && window.supabase.createClient) return true;
+  }
+  return !!(window.supabase && window.supabase.createClient);
+})();
+
+async function ensureClient(){
+  const ok=await libReady;
+  if(!ok){
+    showAuthMessage("The Supabase library could not be loaded. Check your internet connection (or ad-blocker) and reload the page.",true);
     return false;
   }
-  const key = CONFIG.SUPABASE_KEY || "";
-  const looksValid = key.startsWith("sb_publishable_") || key.split(".").length === 3;
-  if(!CONFIG.SUPABASE_URL.startsWith("https://") || !looksValid){
-    showAuthMessage("Your Supabase key is incomplete. Paste the full anon/publishable key into CONFIG.",true);
+  if(!/^https:\/\/.+/.test(CONFIG.SUPABASE_URL||"")){
+    showAuthMessage("Supabase Project URL is missing or invalid. Open 'Connection settings' below.",true);
+    $("setupBox").open=true;
+    return false;
+  }
+  if(!keyLooksValid(CONFIG.SUPABASE_KEY)){
+    showAuthMessage("Your Supabase key is missing or incomplete. Open 'Connection settings' below and paste the FULL anon/publishable key.",true);
+    $("setupBox").open=true;
     return false;
   }
   try{
-    if(!sb) sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+    if(!sb) sb=window.supabase.createClient(CONFIG.SUPABASE_URL.trim(),CONFIG.SUPABASE_KEY.trim());
   }catch(err){
     showAuthMessage("Supabase setup error: "+err.message,true);
     return false;
@@ -526,6 +630,74 @@ function readyConfig(){
   return true;
 }
 
+async function checkConnection(){
+  const box=$("connStatus");
+  box.className="muted";
+  box.textContent="Checking connection…";
+
+  if(!(await libReady)){
+    box.className="error";
+    box.textContent="✖ Supabase library failed to load.";
+    return;
+  }
+  if(!keyLooksValid(CONFIG.SUPABASE_KEY)){
+    box.className="error";
+    box.textContent="✖ API key is missing or incomplete (it must be the full key).";
+    $("setupBox").open=true;
+    return;
+  }
+  try{
+    const res=await fetch(CONFIG.SUPABASE_URL.trim().replace(/\/$/,"")+"/auth/v1/settings",{
+      headers:{apikey:CONFIG.SUPABASE_KEY.trim()}
+    });
+    if(res.ok){
+      let extra="";
+      try{
+        const s=await res.json();
+        if(s && s.mailer_autoconfirm===false) extra=" · Email confirmation is ON (new users must verify their email before signing in)";
+      }catch(e){}
+      box.className="success";
+      box.textContent="✔ Connected to Supabase."+extra;
+    }else{
+      box.className="error";
+      box.textContent="✖ Supabase rejected the key (HTTP "+res.status+"). Paste the full anon/publishable key below.";
+      $("setupBox").open=true;
+    }
+  }catch(e){
+    box.className="error";
+    box.textContent="✖ Cannot reach "+CONFIG.SUPABASE_URL+" — check the Project URL and your internet.";
+    $("setupBox").open=true;
+  }
+}
+
+/* ---------- Connection settings box ---------- */
+
+$("cfgUrl").value=CONFIG.SUPABASE_URL||"";
+$("cfgKey").value=keyLooksValid(CONFIG.SUPABASE_KEY)?CONFIG.SUPABASE_KEY:"";
+
+$("saveCfg").addEventListener("click",()=>{
+  const url=$("cfgUrl").value.trim();
+  const key=$("cfgKey").value.replace(/\s+/g,"");
+  if(!/^https:\/\/.+\.supabase\.co\/?$/.test(url) && !/^https:\/\/.+/.test(url)){
+    return showAuthMessage("Enter a valid Project URL, e.g. https://xxxx.supabase.co",true);
+  }
+  if(!keyLooksValid(key)){
+    return showAuthMessage("That key looks incomplete. A legacy anon key has 3 parts separated by dots (about 200+ characters); a new one starts with sb_publishable_.",true);
+  }
+  try{
+    localStorage.setItem("zeltriq_cfg",JSON.stringify({url,key}));
+  }catch(e){
+    return showAuthMessage("Could not save settings in this browser.",true);
+  }
+  location.reload();
+});
+
+$("clearCfg").addEventListener("click",()=>{
+  try{ localStorage.removeItem("zeltriq_cfg"); }catch(e){}
+  location.reload();
+});
+
+/* ---------- Navigation ---------- */
 
 function setPage(name){
   document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
@@ -545,7 +717,7 @@ function setPage(name){
 
 document.querySelectorAll("[data-page]").forEach(button=>{
   button.addEventListener("click",()=>{
-    if(button.dataset.page==="admin" && currentProfile?.role!=="admin"){
+    if(button.dataset.page==="admin" && (!currentProfile || currentProfile.role!=="admin")){
       toast("You are not authorised to access the admin panel.",true);
       return;
     }
@@ -567,14 +739,17 @@ function showLogin(){
   $("auth").classList.remove("hidden");
 }
 
+/* ---------- Auth ---------- */
+
 $("authForm").addEventListener("submit",async e=>{
   e.preventDefault();
-  if(!readyConfig()) return;
-
   const button=$("loginBtn");
+  showAuthMessage("");
   setBusy(button,true,"Signing in…");
 
   try{
+    if(!(await ensureClient())) return;
+
     const {data,error}=await sb.auth.signInWithPassword({
       email:$("authEmail").value.trim(),
       password:$("authPassword").value
@@ -583,112 +758,141 @@ $("authForm").addEventListener("submit",async e=>{
     currentUser=data.user;
     await bootUser();
   }catch(error){
-    showAuthMessage(error.message || "Sign in failed.",true);
+    console.error(error);
+    showAuthMessage(friendlyAuthError(error),true);
   }finally{
     setBusy(button,false);
   }
 });
 
 $("signupBtn").addEventListener("click",async()=>{
-  if(!readyConfig()) return;
   const email=$("authEmail").value.trim();
   const password=$("authPassword").value;
+  const button=$("signupBtn");
+  showAuthMessage("");
 
   if(!email || password.length<8){
     showAuthMessage("Enter an email address and a password of at least 8 characters.",true);
     return;
   }
 
-  const button=$("signupBtn");
   setBusy(button,true,"Creating account…");
 
   try{
+    if(!(await ensureClient())) return;
+
     const ref=new URLSearchParams(location.search).get("ref");
     const {data,error}=await sb.auth.signUp({
       email,password,
-      options:{data:ref?{referral_code:ref}:{}}
+      options:{
+        data:ref?{referral_code:ref}:{},
+        emailRedirectTo:location.origin+location.pathname
+      }
     });
     if(error) throw error;
+
+    // Supabase returns a user with no identities when the email already exists
+    if(data.user && Array.isArray(data.user.identities) && data.user.identities.length===0){
+      showAuthMessage("An account with this email already exists. Tap 'Sign in' instead (or 'Forgot password?').",true);
+      return;
+    }
 
     if(data.session){
       currentUser=data.user;
       await bootUser();
     }else{
-      showAuthMessage("Registration submitted. Check your email to verify your account, then sign in.");
+      showAuthMessage("Account created. Check your email (and spam folder) to verify your account, then sign in.");
     }
   }catch(error){
-    showAuthMessage(error.message || "Registration failed.",true);
+    console.error(error);
+    showAuthMessage(friendlyAuthError(error),true);
   }finally{
     setBusy(button,false);
   }
 });
 
 $("resetBtn").addEventListener("click",async()=>{
-  if(!readyConfig()) return;
   const email=$("authEmail").value.trim();
   if(!email){
     showAuthMessage("Enter your email address first.",true);
     return;
   }
-  const {error}=await sb.auth.resetPasswordForEmail(email,{
-    redirectTo:location.origin+location.pathname
-  });
-  if(error) showAuthMessage(error.message,true);
-  else showAuthMessage("If this email is registered, a password reset link will be sent.");
+  const button=$("resetBtn");
+  setBusy(button,true,"Sending…");
+  try{
+    if(!(await ensureClient())) return;
+    const {error}=await sb.auth.resetPasswordForEmail(email,{
+      redirectTo:location.origin+location.pathname
+    });
+    if(error) throw error;
+    showAuthMessage("If this email is registered, a password reset link will be sent.");
+  }catch(error){
+    showAuthMessage(friendlyAuthError(error),true);
+  }finally{
+    setBusy(button,false);
+  }
 });
 
 $("logoutBtn").addEventListener("click",async()=>{
-  if(sb) await sb.auth.signOut();
+  try{ if(sb) await sb.auth.signOut(); }catch(e){ console.error(e); }
   currentUser=null;
   currentProfile=null;
   currentWallet=null;
   showLogin();
 });
 
+async function safe(label,fn){
+  try{ await fn(); }
+  catch(error){
+    console.error(label,error);
+    toast(label+": "+(error.message||"failed"),true);
+  }
+}
+
 async function bootUser(){
   showApp();
   $("userEmail").textContent=currentUser.email || "";
-  try{
-    await loadProfile();
-    renderGames();
-    await loadWallet();
-    await loadMembership();
-    await loadReferrals();
-    configureWhatsApp();
-    if(currentProfile?.role==="admin"){
-      $("adminNav").classList.remove("hidden");
-    }else{
-      $("adminNav").classList.add("hidden");
-    }
-  }catch(error){
-    console.error(error);
-    toast("Account data could not be loaded: "+error.message,true);
+  renderGames();
+
+  await safe("Profile",loadProfile);
+  await safe("Wallet",loadWallet);
+  await safe("Membership",loadMembership);
+  await safe("Referrals",loadReferrals);
+  configureWhatsApp();
+
+  if(currentProfile && currentProfile.role==="admin"){
+    $("adminNav").classList.remove("hidden");
+  }else{
+    $("adminNav").classList.add("hidden");
   }
 }
 
 async function loadProfile(){
   const {data,error}=await sb.from("profiles")
     .select("id,email,role,referral_code")
-    .eq("id",currentUser.id).single();
+    .eq("id",currentUser.id).maybeSingle();
   if(error) throw error;
-  currentProfile=data;
+
+  if(data){
+    currentProfile=data;
+  }else{
+    // Profile row missing (signup trigger not set up yet) – fall back so the app still works
+    currentProfile={id:currentUser.id,email:currentUser.email,role:"user",referral_code:""};
+    toast("Profile row not found. Run the Supabase SQL setup so a profile is created on signup.",true);
+  }
 }
 
 async function loadWallet(){
   if(!currentUser || !sb) return;
   const {data,error}=await sb.from("wallets")
     .select("points_balance,cash_balance")
-    .eq("user_id",currentUser.id).single();
+    .eq("user_id",currentUser.id).maybeSingle();
 
-  if(error){
-    console.error(error);
-    toast("Wallet unavailable. Confirm the Supabase SQL setup has been run.",true);
-    return;
-  }
+  if(error) throw error;
 
-  currentWallet=data;
-  const points=Number(data.points_balance||0).toLocaleString("en-NG");
-  const cash=money(data.cash_balance);
+  currentWallet=data || {points_balance:0,cash_balance:0};
+  const points=Number(currentWallet.points_balance||0).toLocaleString("en-NG");
+  const cash=money(currentWallet.cash_balance);
 
   $("pointsBalance").textContent=points;
   $("walletPoints").textContent=points;
@@ -733,23 +937,17 @@ async function loadMembership(){
     .order("expires_at",{ascending:false})
     .limit(1);
 
-  if(error){
-    console.error(error);
-    return;
-  }
+  if(error) throw error;
 
   currentMembership=data?.[0]||null;
-  const plan=currentMembership?.plan?.toUpperCase()||"FREE";
+  const expired=currentMembership?.expires_at && new Date(currentMembership.expires_at)<new Date();
+  const plan=(currentMembership && !expired)?currentMembership.plan.toUpperCase():"FREE";
+
   $("membershipBadge").textContent=plan;
   $("homeMembership").textContent=plan;
-  $("membershipStatus").textContent=currentMembership
+  $("membershipStatus").textContent=(currentMembership && !expired)
     ? plan+" membership active until "+new Date(currentMembership.expires_at).toLocaleDateString()
     : "You are currently on the FREE plan.";
-
-  if(currentMembership?.expires_at && new Date(currentMembership.expires_at)<new Date()){
-    $("membershipBadge").textContent="FREE";
-    $("homeMembership").textContent="FREE";
-  }
 }
 
 async function loadReferrals(){
@@ -797,10 +995,10 @@ $("withdrawForm").addEventListener("submit",async e=>{
     return toast("Enter a valid 10-digit account number.",true);
   }
 
-  const button=e.submitter;
+  const button=submitButton(e);
   setBusy(button,true,"Submitting…");
   try{
-    const {data,error}=await sb.rpc("request_withdrawal",{
+    const {error}=await sb.rpc("request_withdrawal",{
       p_amount:amount,
       p_bank_name:bank,
       p_account_name:accountName,
@@ -824,7 +1022,7 @@ $("redeemForm").addEventListener("submit",async e=>{
   if(!Number.isInteger(points)||points<1) return toast("Enter a valid points amount.",true);
   if(!/^0\d{10}$/.test(phone)) return toast("Enter an 11-digit Nigerian phone number.",true);
 
-  const button=e.submitter;
+  const button=submitButton(e);
   setBusy(button,true,"Submitting…");
   try{
     const {error}=await sb.rpc("request_airtime_redemption",{
@@ -876,7 +1074,7 @@ document.querySelectorAll("[data-plan]").forEach(button=>{
 
 $("ticketForm").addEventListener("submit",async e=>{
   e.preventDefault();
-  const button=e.submitter;
+  const button=submitButton(e);
   setBusy(button,true,"Submitting…");
   try{
     const {error}=await sb.from("support_tickets").insert({
@@ -918,16 +1116,21 @@ async function loadTickets(){
 }
 
 function configureWhatsApp(){
-  const number=CONFIG.WHATSAPP_NUMBER.replace(/\D/g,"");
+  const number=(CONFIG.WHATSAPP_NUMBER||"").replace(/\D/g,"");
   const link=$("whatsappLink");
   if(number){
     link.href="https://wa.me/"+number;
   }else{
     link.href="#";
-    link.addEventListener("click",e=>{
-      e.preventDefault();
-      toast("Add your official WhatsApp number in CONFIG first.",true);
-    });
+    if(!whatsappBound){
+      whatsappBound=true;
+      link.addEventListener("click",e=>{
+        if(link.getAttribute("href")==="#"){
+          e.preventDefault();
+          toast("Add your official WhatsApp number in CONFIG first.",true);
+        }
+      });
+    }
   }
 }
 
@@ -984,9 +1187,12 @@ function renderGames(){
 
   $("featuredGames").innerHTML=markup;
   $("allGames").innerHTML=markup;
+  bindGameButtons();
+}
 
+function bindGameButtons(){
   document.querySelectorAll("[data-game]").forEach(button=>{
-    button.addEventListener("click",()=>startGame(button.dataset.game));
+    button.onclick=()=>startGame(button.dataset.game);
   });
 }
 
@@ -998,9 +1204,9 @@ $("closeGame").addEventListener("click",()=>{
 function startGame(id){
   clearInterval(gameTimer);
   gameState={};
+  setPage("games");
   $("gamePanel").classList.remove("hidden");
   $("gameTitle").textContent=GAME_LIST.find(g=>g.id===id)?.name||"Game";
-  setPage("games");
 
   if(id==="quiz") playQuiz();
   else if(id==="speed") playSpeed();
@@ -1113,7 +1319,7 @@ function playMemory(){
         }else{
           locked=true;
           setTimeout(()=>{
-            opened.forEach(c=>c.button.textContent="?")
+            opened.forEach(c=>{c.button.textContent="?";});
             opened=[];
             locked=false;
           },650);
@@ -1158,21 +1364,15 @@ function finishGame(gameId,score,message){
   */
 }
 
+/* ---------- Startup ---------- */
+
 async function initialise(){
-  if(!readyConfig()) return;
+  bindGameButtons();
+  await checkConnection();
 
-  const {data,error}=await sb.auth.getSession();
-  if(error){
-    showAuthMessage(error.message,true);
-    return;
-  }
+  if(!(await ensureClient())) return;
 
-  if(data.session){
-    currentUser=data.session.user;
-    await bootUser();
-  }
-
-  sb.auth.onAuthStateChange((event,session)=>{
+  sb.auth.onAuthStateChange((event)=>{
     if(event==="SIGNED_OUT"){
       currentUser=null;
       currentProfile=null;
@@ -1181,6 +1381,17 @@ async function initialise(){
       toast("Password recovery session opened.");
     }
   });
+
+  try{
+    const {data,error}=await sb.auth.getSession();
+    if(error) throw error;
+    if(data.session){
+      currentUser=data.session.user;
+      await bootUser();
+    }
+  }catch(error){
+    showAuthMessage(friendlyAuthError(error),true);
+  }
 }
 
 initialise();
