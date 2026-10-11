@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080b16">
+<title>ZELTRIQ — Play Smart. Compete. Earn.</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+:root{
+  --bg:#080b16;
+  --panel:#11182a;
+  --panel2:#172139;
+  --blue:#4185ff;
+  --cyan:#39e5ff;
+  --purple:#9867ff;
+  --text:#f5f7ff;
+  --muted:#9ba8c5;
+  --border:#283450;
+  --green:#40e6a0;
+  --red:#ff647c;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:var(--bg);color:var(--text);
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+button:disabled{opacity:.45;cursor:not-allowed}
+.hidden{display:none!important}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.brand{font-size:25px;font-weight:950;letter-spacing:2px}
+.brand span{color:var(--cyan)}
+button,.btn{
+  border:0;border-radius:12px;padding:12px 15px;
+  background:var(--blue);color:white;font-weight:750;
+}
+.btn-secondary{background:#222d47;border:1px solid var(--border)}
+.btn-danger{background:#a82c47}
+input,select,textarea{
+  width:100%;padding:13px;margin:7px 0 14px;
+  background:#0b1120;border:1px solid var(--border);
+  border-radius:10px;color:white;outline:none;
+}
+input:focus,textarea:focus,select:focus{border-color:var(--cyan)}
+label{font-size:13px;color:#c4cee4}
+h1,h2,h3{margin-top:0}
+h2{font-size:22px}
+h3{font-size:16px}
+p{line-height:1.55}
+a{color:var(--cyan)}
+.notice{
+  padding:12px;border-radius:10px;background:#182641;
+  border:1px solid var(--border);margin:12px 0;font-size:13px;
+}
+.error{color:#ff8b9e}
+.success{color:var(--green)}
+#auth{
+  min-height:100vh;display:grid;place-items:center;padding:20px;
+  background:radial-gradient(ellipse at top,#172955 0%,var(--bg) 65%);
+}
+.auth-box{width:100%;max-width:430px;padding:25px}
+#app{min-height:100vh}
+.topbar{
+  position:sticky;top:0;z-index:10;
+  background:#080b16ed;backdrop-filter:blur(18px);
+  border-bottom:1px solid var(--border);
+  padding:14px 18px;display:flex;justify-content:space-between;
+  align-items:center;gap:12px;
+}
+.top-actions{display:flex;gap:8px;align-items:center}
+.layout{display:flex;min-height:calc(100vh - 65px)}
+.sidebar{
+  width:220px;flex-shrink:0;padding:18px 12px;
+  border-right:1px solid var(--border);
+}
+.nav-btn{
+  width:100%;text-align:left;background:transparent;
+  color:var(--muted);margin:3px 0;padding:13px;
+  border:1px solid transparent;
+}
+.nav-btn.active,.nav-btn:hover{
+  color:white;background:#182642;border-color:#283d67;
+}
+main{flex:1;min-width:0;padding:25px;max-width:1400px}
+.page{display:none}
+.page.active{display:block}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.card{
+  padding:19px;border:1px solid var(--border);
+  background:linear-gradient(145deg,var(--panel),#0d1322);
+  border-radius:17px;min-width:0;
+}
+.stat{font-size:26px;font-weight:900;margin:12px 0 5px;overflow-wrap:anywhere}
+.game-card{display:flex;flex-direction:column;gap:12px}
+.game-icon{font-size:34px}
+.game-card button{margin-top:auto}
+.pill{
+  display:inline-block;padding:5px 9px;border-radius:20px;
+  background:#1a3457;color:#7de8ff;font-size:11px;font-weight:800;
+}
+.row{display:flex;justify-content:space-between;align-items:center;gap:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:12px 8px;border-bottom:1px solid var(--border)}
+.table-wrap{overflow-x:auto}
+.empty{padding:25px;text-align:center;color:var(--muted)}
+#toast{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  z-index:100;background:#243452;border:1px solid #40577c;
+  padding:13px 18px;border-radius:12px;max-width:90%;
+}
+.game-area{text-align:center;padding:25px 5px}
+.game-number{font-size:48px;font-weight:950;margin:25px 0}
+.game-area button{margin:5px}
+#adminNav{border-top:1px solid var(--border);margin-top:12px;padding-top:12px}
+footer{padding:20px;color:var(--muted);font-size:12px;text-align:center}
+@media(max-width:800px){
+  .layout{display:block}
+  .sidebar{
+    width:100%;display:flex;overflow-x:auto;gap:5px;
+    padding:8px;border-right:0;border-bottom:1px solid var(--border);
+    position:sticky;top:64px;z-index:9;background:var(--bg);
+  }
+  .nav-btn{width:auto;white-space:nowrap;margin:0;padding:10px}
+  main{padding:17px}
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .grid-2{grid-template-columns:1fr}
+}
+@media(max-width:440px){
+  .grid{grid-template-columns:1fr}
+  .brand{font-size:21px}
+  .topbar{padding:12px}
+  main{padding:13px}
+  .stat{font-size:24px}
+}
+</style>
+</head>
+
+<body>
+
+<section id="auth">
+  <div class="auth-box card">
+    <div class="brand">ZELT<span>RIQ</span></div>
+    <p class="muted">PLAY SMART. COMPETE. EARN.</p>
+    <div class="notice">
+      Welcome to ZELTRIQ. Create your account or sign in to access your dashboard.
+    </div>
+
+    <div id="authMessage" aria-live="polite"></div>
+
+    <form id="authForm">
+      <label>Email address</label>
+      <input id="authEmail" type="email" autocomplete="email" required>
+
+      <label>Password</label>
+      <input id="authPassword" type="password"
+             minlength="8" autocomplete="current-password" required>
+
+      <button id="loginBtn" type="submit" style="width:100%">
+        Sign in
+      </button>
+      <button type="button" class="btn-secondary"
+              style="width:100%;margin-top:10px" id="signupBtn">
+        Create account
+      </button>
+      <button type="button" class="btn-secondary"
+              style="width:100%;margin-top:10px" id="resetBtn">
+        Forgot password?
+      </button>
+    </form>
+    <p class="small muted">
+      By registering, you agree to the platform's terms and privacy policy.
+    </p>
+  </div>
+</section>
+
+<section id="app" class="hidden">
+  <header class="topbar">
+    <div class="brand">ZELT<span>RIQ</span></div>
+    <div class="top-actions">
+      <span class="pill" id="membershipBadge">FREE</span>
+      <button class="btn-secondary" id="logoutBtn">Logout</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar" aria-label="Main navigation">
+      <button class="nav-btn active" data-page="home">🏠 Home</button>
+      <button class="nav-btn" data-page="games">🎮 Games</button>
+      <button class="nav-btn" data-page="wallet">👛 Wallet</button>
+      <button class="nav-btn" data-page="rewards">🎁 Rewards</button>
+      <button class="nav-btn" data-page="membership">💎 Membership</button>
+      <button class="nav-btn" data-page="referrals">🤝 Referrals</button>
+      <button class="nav-btn" data-page="support">💬 Support</button>
+      <button class="nav-btn hidden" id="adminNav" data-page="admin">🛡️ Admin</button>
+    </nav>
+
+    <main>
+      <section id="page-home" class="page active">
+        <h2>Welcome back 👋</h2>
+        <p class="muted" id="userEmail"></p>
+
+        <div class="grid">
+          <div class="card">
+            <div class="muted">Game points</div>
+            <div class="stat" id="pointsBalance">—</div>
+            <div class="small muted">Earn through eligible activities.</div>
+          </div>
+          <div class="card">
+            <div class="muted">Cash rewards</div>
+            <div class="stat" id="cashBalance">₦0.00</div>
+            <div class="small muted">Only verified rewards are included.</div>
+          </div>
+          <div class="card">
+            <div class="muted">Membership</div>
+            <div class="stat" style="font-size:22px" id="homeMembership">FREE</div>
+            <button class="btn-secondary" data-goto="membership">View plans</button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:18px">
+          <div class="row">
+            <div>
+              <h3>Daily Challenge</h3>
+              <p class="muted">Test your skills and explore today's challenge.</p>
+            </div>
+            <button data-game="daily">Play</button>
+          </div>
+        </div>
+
+        <h2 style="margin-top:28px">Featured games</h2>
+        <div id="featuredGames" class="grid"></div>
+      </section>
+
+      <section id="page-games" class="page">
+        <h2>Gaming Arena</h2>
+        <p class="muted">Play online. Eligible reward claims are verified by the backend.</p>
+        <div id="allGames" class="grid"></div>
+        <div id="gamePanel" class="card hidden" style="margin-top:20px">
+          <div class="row">
+            <h3 id="gameTitle">Game</h3>
+            <button class="btn-secondary" id="closeGame">Close</button>
+          </div>
+          <div id="gameArea" class="game-area"></div>
+        </div>
+      </section>
+
+      <section id="page-wallet" class="page">
+        <h2>Advanced Wallet</h2>
+        <div class="grid-2">
+          <div class="card">
+            <div class="muted">Game points</div>
+            <div class="stat" id="walletPoints">—</div>
+          </div>
+          <div class="card">
+            <div class="muted">Cash rewards</div>
+            <div class="stat" id="walletCash">₦0.00</div>
+          </div>
+        </div>
+        <div class="notice">
+          Points and cash rewards are separate balances. Points are not cash.
+          No withdrawal or redemption is marked successful until the backend
+          and payment provider confirm it.
+        </div>
+        <h3>Transaction history</h3>
+        <div class="card table-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead>
+            <tbody id="transactions">
+              <tr><td colspan="4">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 style="margin-top:25px">Request a withdrawal</h3>
+        <div class="card">
+          <p class="muted">Minimum withdrawal: ₦2,000. Requests of ₦10,000 or more require admin review.</p>
+          <form id="withdrawForm">
+            <label>Amount (₦)</label>
+            <input id="withdrawAmount" type="number" min="2000" step="1" required>
+            <label>Bank name</label>
+            <input id="bankName" required maxlength="100">
+            <label>Account name</label>
+            <input id="accountName" required maxlength="150">
+            <label>Account number</label>
+            <input id="accountNumber" inputmode="numeric"
+                   pattern="[0-9]{10}" minlength="10" maxlength="10" required>
+            <button type="submit">Submit withdrawal request</button>
+          </form>
+          <p class="small muted">
+            Requests remain pending until verified. A request does not mean
+            money has been transferred.
+          </p>
+        </div>
+      </section>
+
+      <section id="page-rewards" class="page">
+        <h2>Rewards Centre</h2>
+        <div class="grid-2">
+          <div class="card">
+            <h3>📱 Airtime & Data</h3>
+            <p class="muted">MTN, Airtel, Glo and 9mobile.</p>
+            <form id="redeemForm">
+              <label>Network</label>
+              <select id="network">
+                <option>MTN</option><option>Airtel</option>
+                <option>Glo</option><option>9mobile</option>
+              </select>
+              <label>Reward type</label>
+              <select id="rewardType">
+                <option value="airtime">Airtime</option>
+                <option value="data">Data</option>
+              </select>
+              <label>Phone number</label>
+              <input id="rewardPhone" inputmode="tel"
+                     pattern="0[0-9]{10}" maxlength="11" required>
+              <label>Amount in points</label>
+              <input id="rewardPoints" type="number" min="1" step="1" required>
+              <button type="submit">Submit redemption request</button>
+            </form>
+            <p class="small muted">Fulfilment requires a configured airtime/data provider.</p>
+          </div>
+          <div class="card">
+            <h3>🏆 Cash challenges</h3>
+            <p>Eligible premium challenges may offer cash prizes under published rules.</p>
+            <p class="muted">A prize is credited only after server-side verification.</p>
+            <button data-goto="membership">View membership</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-membership" class="page">
+        <h2>Membership plans</h2>
+        <p class="muted">Choose a plan. Payment confirmation is required before activation.</p>
+        <div class="grid">
+          <div class="card">
+            <span class="pill">PREMIUM</span>
+            <div class="stat">₦2,000</div>
+            <p class="muted">Per month</p>
+            <ul><li>Premium game modes</li><li>Eligible challenges</li><li>Member benefits</li></ul>
+            <button data-plan="premium" data-amount="2000">Choose Premium</button>
+          </div>
+          <div class="card">
+            <span class="pill">PRO</span>
+            <div class="stat">₦5,000</div>
+            <p class="muted">Per month</p>
+            <ul><li>Advanced game access</li><li>Eligible competitions</li><li>Pro member benefits</li></ul>
+            <button data-plan="pro" data-amount="5000">Choose Pro</button>
+          </div>
+          <div class="card">
+            <span class="pill">VIP</span>
+            <div class="stat">₦10,000</div>
+            <p class="muted">Per month</p>
+            <ul><li>VIP game access</li><li>Eligible VIP challenges</li><li>VIP member benefits</li></ul>
+            <button data-plan="vip" data-amount="10000">Choose VIP</button>
+          </div>
+        </div>
+        <div class="notice">
+          Subscription payments require a configured payment provider.
+          Membership is not activated merely by clicking a plan.
+          Auto-renewal must be explicitly authorised and cancellable.
+        </div>
+        <div id="membershipStatus" class="card">Loading membership status…</div>
+      </section>
+
+      <section id="page-referrals" class="page">
+        <h2>Referral Centre</h2>
+        <div class="card">
+          <h3>Your referral code</h3>
+          <div class="stat" id="referralCode">—</div>
+          <button id="copyReferral">Copy referral link</button>
+          <p class="muted">Referral rewards are issued only after server verification.</p>
+        </div>
+        <div class="grid" style="margin-top:15px">
+          <div class="card"><div class="muted">Successful referrals</div><div class="stat" id="referralCount">—</div></div>
+          <div class="card"><div class="muted">Points per qualifying referral</div><div class="stat">200</div></div>
+          <div class="card"><div class="muted">First subscription commission</div><div class="stat">5%</div></div>
+        </div>
+      </section>
+
+      <section id="page-support" class="page">
+        <h2>Support Centre</h2>
+        <div class="grid-2">
+          <div class="card">
+            <h3>WhatsApp support</h3>
+            <p class="muted">Quick questions and general assistance.</p>
+            <a id="whatsappLink" href="#" target="_blank" rel="noopener">Open WhatsApp</a>
+            <p class="small muted">Set your official support number in the configuration below.</p>
+          </div>
+          <div class="card">
+            <h3>Submit a support ticket</h3>
+            <form id="ticketForm">
+              <label>Issue category</label>
+              <select id="ticketCategory">
+                <option value="account">Account</option>
+                <option value="payment">Payment</option>
+                <option value="reward">Missing reward</option>
+                <option value="withdrawal">Withdrawal</option>
+                <option value="technical">Technical issue</option>
+                <option value="other">Other</option>
+              </select>
+              <label>Subject</label>
+              <input id="ticketSubject" maxlength="150" required>
+              <label>Describe the problem</label>
+              <textarea id="ticketBody" rows="5" maxlength="4000" required></textarea>
+              <button type="submit">Submit ticket</button>
+            </form>
+          </div>
+        </div>
+        <h3 style="margin-top:20px">Your tickets</h3>
+        <div id="ticketList" class="card">Loading…</div>
+      </section>
+
+      <section id="page-admin" class="page">
+        <h2>Administration</h2>
+        <div class="notice">
+          Admin access is determined by a protected database role.
+          Hiding this page is not a security mechanism.
+        </div>
+        <div class="grid">
+          <div class="card"><div class="muted">Registered profiles</div><div class="stat" id="adminUsers">—</div></div>
+          <div class="card"><div class="muted">Pending withdrawals</div><div class="stat" id="adminWithdrawals">—</div></div>
+          <div class="card"><div class="muted">Open support tickets</div><div class="stat" id="adminTickets">—</div></div>
+        </div>
+        <h3 style="margin-top:20px">Pending withdrawal requests</h3>
+        <div id="adminWithdrawalList" class="card table-wrap">Loading…</div>
+        <h3 style="margin-top:20px">Support tickets</h3>
+        <div id="adminTicketList" class="card table-wrap">Loading…</div>
+        <p class="small muted">Administrative updates must be authorised by database policies or server-side functions.</p>
+      </section>
+    </main>
+  </div>
+  <footer>ZELTRIQ · Play Smart. Compete. Earn.</footer>
+</section>
+
+<div id="toast" class="hidden" role="status" aria-live="polite"></div>
+
+<script>
+/*
+  ZELTRIQ CONFIGURATION
+
+  Replace the two Supabase placeholders with your project's
+  Project URL and publishable/anon key.
+
+  NEVER place a service_role or secret key in this file.
+*/
+const CONFIG = {
+  SUPABASE_URL: "PASTE_YOUR_SUPABASE_PROJECT_URL_HERE",
+  SUPABASE_KEY: "PASTE_YOUR_SUPABASE_PUBLISHABLE_KEY_HERE",
+  WHATSAPP_NUMBER: "", // Example: 2348012345678
+  SITE_URL: window.location.origin
+};
+
+const $ = id => document.getElementById(id);
+
+let sb = null;
+let currentUser = null;
+let currentProfile = null;
+let currentWallet = null;
+let currentMembership = null;
+let gameTimer = null;
+let gameState = {};
+let toastTimer = null;
+
+const GAME_LIST = [
+  {id:"quiz",name:"Brain Quiz",icon:"🧠",description:"Test your knowledge and speed."},
+  {id:"speed",name:"Speed Tap",icon:"⚡",description:"React quickly to the challenge."},
+  {id:"number",name:"Number Challenge",icon:"🔢",description:"Solve number puzzles."},
+  {id:"memory",name:"Memory Match",icon:"🧩",description:"Remember and match symbols."},
+  {id:"daily",name:"Daily Challenge",icon:"🏆",description:"Take on the daily challenge."}
+];
+
+function escapeHTML(value){
+  return String(value ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  })[c]);
+}
+
+function money(value){
+  return new Intl.NumberFormat("en-NG",{
+    style:"currency",currency:"NGN",maximumFractionDigits:2
+  }).format(Number(value || 0));
+}
+
+function toast(message,isError=false){
+  $("toast").textContent=message;
+  $("toast").classList.remove("hidden");
+  $("toast").style.borderColor=isError?"#ff647c":"#40577c";
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>$("toast").classList.add("hidden"),4500);
+}
+
+function showAuthMessage(message,isError=false){
+  $("authMessage").className=isError?"error":"success";
+  $("authMessage").textContent=message;
+}
+
+function setBusy(button,busy,label){
+  if(!button.dataset.originalText) button.dataset.originalText=button.textContent;
+  button.disabled=busy;
+  button.textContent=busy?label:button.dataset.originalText;
+}
+
+function readyConfig(){
+  if(!window.supabase){
+    toast("Supabase library failed to load. Check your internet connection.",true);
+    return false;
+  }
+  if(!CONFIG.SUPABASE_URL.startsWith("https://") ||
+     CONFIG.SUPABASE_KEY.includes("PASTE_YOUR")){
+    showAuthMessage("Add your Supabase project URL and publishable key in the CONFIG section of index.html.",true);
+    return false;
+  }
+  if(!sb) sb=window.supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_KEY);
+  return true;
+}
+
+function setPage(name){
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  const page=$("page-"+name);
+  if(!page) return;
+  page.classList.add("active");
+  document.querySelectorAll(".nav-btn").forEach(b=>{
+    b.classList.toggle("active",b.dataset.page===name);
+  });
+  if(name==="wallet") loadWallet();
+  if(name==="referrals") loadReferrals();
+  if(name==="support") loadTickets();
+  if(name==="membership") loadMembership();
+  if(name==="admin") loadAdmin();
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+document.querySelectorAll("[data-page]").forEach(button=>{
+  button.addEventListener("click",()=>{
+    if(button.dataset.page==="admin" && currentProfile?.role!=="admin"){
+      toast("You are not authorised to access the admin panel.",true);
+      return;
+    }
+    setPage(button.dataset.page);
+  });
+});
+
+document.querySelectorAll("[data-goto]").forEach(button=>{
+  button.addEventListener("click",()=>setPage(button.dataset.goto));
+});
+
+function showApp(){
+  $("auth").classList.add("hidden");
+  $("app").classList.remove("hidden");
+}
+
+function showLogin(){
+  $("app").classList.add("hidden");
+  $("auth").classList.remove("hidden");
+}
+
+$("authForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  if(!readyConfig()) return;
+
+  const button=$("loginBtn");
+  setBusy(button,true,"Signing in…");
+
+  try{
+    const {data,error}=await sb.auth.signInWithPassword({
+      email:$("authEmail").value.trim(),
+      password:$("authPassword").value
+    });
+    if(error) throw error;
+    currentUser=data.user;
+    await bootUser();
+  }catch(error){
+    showAuthMessage(error.message || "Sign in failed.",true);
+  }finally{
+    setBusy(button,false);
+  }
+});
+
+$("signupBtn").addEventListener("click",async()=>{
+  if(!readyConfig()) return;
+  const email=$("authEmail").value.trim();
+  const password=$("authPassword").value;
+
+  if(!email || password.length<8){
+    showAuthMessage("Enter an email address and a password of at least 8 characters.",true);
+    return;
+  }
+
+  const button=$("signupBtn");
+  setBusy(button,true,"Creating account…");
+
+  try{
+    const ref=new URLSearchParams(location.search).get("ref");
+    const {data,error}=await sb.auth.signUp({
+      email,password,
+      options:{data:ref?{referral_code:ref}:{}}
+    });
+    if(error) throw error;
+
+    if(data.session){
+      currentUser=data.user;
+      await bootUser();
+    }else{
+      showAuthMessage("Registration submitted. Check your email to verify your account, then sign in.");
+    }
+  }catch(error){
+    showAuthMessage(error.message || "Registration failed.",true);
+  }finally{
+    setBusy(button,false);
+  }
+});
+
+$("resetBtn").addEventListener("click",async()=>{
+  if(!readyConfig()) return;
+  const email=$("authEmail").value.trim();
+  if(!email){
+    showAuthMessage("Enter your email address first.",true);
+    return;
+  }
+  const {error}=await sb.auth.resetPasswordForEmail(email,{
+    redirectTo:location.origin+location.pathname
+  });
+  if(error) showAuthMessage(error.message,true);
+  else showAuthMessage("If this email is registered, a password reset link will be sent.");
+});
+
+$("logoutBtn").addEventListener("click",async()=>{
+  if(sb) await sb.auth.signOut();
+  currentUser=null;
+  currentProfile=null;
+  currentWallet=null;
+  showLogin();
+});
+
+async function bootUser(){
+  showApp();
+  $("userEmail").textContent=currentUser.email || "";
+  try{
+    await loadProfile();
+    renderGames();
+    await loadWallet();
+    await loadMembership();
+    await loadReferrals();
+    configureWhatsApp();
+    if(currentProfile?.role==="admin"){
+      $("adminNav").classList.remove("hidden");
+    }else{
+      $("adminNav").classList.add("hidden");
+    }
+  }catch(error){
+    console.error(error);
+    toast("Account data could not be loaded: "+error.message,true);
+  }
+}
+
+async function loadProfile(){
+  const {data,error}=await sb.from("profiles")
+    .select("id,email,role,referral_code")
+    .eq("id",currentUser.id).single();
+  if(error) throw error;
+  currentProfile=data;
+}
+
+async function loadWallet(){
+  if(!currentUser || !sb) return;
+  const {data,error}=await sb.from("wallets")
+    .select("points_balance,cash_balance")
+    .eq("user_id",currentUser.id).single();
+
+  if(error){
+    console.error(error);
+    toast("Wallet unavailable. Confirm the Supabase SQL setup has been run.",true);
+    return;
+  }
+
+  currentWallet=data;
+  const points=Number(data.points_balance||0).toLocaleString("en-NG");
+  const cash=money(data.cash_balance);
+
+  $("pointsBalance").textContent=points;
+  $("walletPoints").textContent=points;
+  $("cashBalance").textContent=cash;
+  $("walletCash").textContent=cash;
+
+  await loadTransactions();
+}
+
+async function loadTransactions(){
+  const {data,error}=await sb.from("transactions")
+    .select("id,type,amount,status,created_at")
+    .eq("user_id",currentUser.id)
+    .order("created_at",{ascending:false})
+    .limit(50);
+
+  if(error){
+    $("transactions").innerHTML="<tr><td colspan='4'>Unable to load transactions.</td></tr>";
+    return;
+  }
+
+  if(!data?.length){
+    $("transactions").innerHTML="<tr><td colspan='4'>No transactions yet.</td></tr>";
+    return;
+  }
+
+  $("transactions").innerHTML=data.map(t=>`
+    <tr>
+      <td>${escapeHTML(new Date(t.created_at).toLocaleString())}</td>
+      <td>${escapeHTML(t.type)}</td>
+      <td>${escapeHTML(t.amount)}</td>
+      <td>${escapeHTML(t.status)}</td>
+    </tr>`).join("");
+}
+
+async function loadMembership(){
+  if(!currentUser) return;
+  const {data,error}=await sb.from("memberships")
+    .select("plan,status,expires_at")
+    .eq("user_id",currentUser.id)
+    .eq("status","active")
+    .order("expires_at",{ascending:false})
+    .limit(1);
+
+  if(error){
+    console.error(error);
+    return;
+  }
+
+  currentMembership=data?.[0]||null;
+  const plan=currentMembership?.plan?.toUpperCase()||"FREE";
+  $("membershipBadge").textContent=plan;
+  $("homeMembership").textContent=plan;
+  $("membershipStatus").textContent=currentMembership
+    ? plan+" membership active until "+new Date(currentMembership.expires_at).toLocaleDateString()
+    : "You are currently on the FREE plan.";
+
+  if(currentMembership?.expires_at && new Date(currentMembership.expires_at)<new Date()){
+    $("membershipBadge").textContent="FREE";
+    $("homeMembership").textContent="FREE";
+  }
+}
+
+async function loadReferrals(){
+  if(!currentUser || !currentProfile) return;
+  const code=currentProfile.referral_code||"";
+  $("referralCode").textContent=code||"Not assigned";
+
+  const {count,error}=await sb.from("referrals")
+    .select("id",{count:"exact",head:true})
+    .eq("referrer_id",currentUser.id)
+    .eq("status","qualified");
+
+  if(error){
+    $("referralCount").textContent="—";
+    return;
+  }
+  $("referralCount").textContent=count||0;
+}
+
+$("copyReferral").addEventListener("click",async()=>{
+  const code=currentProfile?.referral_code;
+  if(!code) return toast("Referral code is not available yet.",true);
+  const link=location.origin+location.pathname+"?ref="+encodeURIComponent(code);
+  try{
+    await navigator.clipboard.writeText(link);
+    toast("Referral link copied.");
+  }catch{
+    prompt("Copy your referral link:",link);
+  }
+});
+
+$("withdrawForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  if(!currentUser) return;
+
+  const amount=Number($("withdrawAmount").value);
+  const bank=$("bankName").value.trim();
+  const accountName=$("accountName").value.trim();
+  const accountNumber=$("accountNumber").value.trim();
+
+  if(!Number.isInteger(amount)||amount<2000){
+    return toast("Minimum withdrawal is ₦2,000.",true);
+  }
+  if(!/^\d{10}$/.test(accountNumber)){
+    return toast("Enter a valid 10-digit account number.",true);
+  }
+
+  const button=e.submitter;
+  setBusy(button,true,"Submitting…");
+  try{
+    const {data,error}=await sb.rpc("request_withdrawal",{
+      p_amount:amount,
+      p_bank_name:bank,
+      p_account_name:accountName,
+      p_account_number:accountNumber
+    });
+    if(error) throw error;
+    toast("Withdrawal request submitted for verification.");
+    $("withdrawForm").reset();
+    await loadWallet();
+  }catch(error){
+    toast(error.message||"Withdrawal request failed.",true);
+  }finally{
+    setBusy(button,false);
+  }
+});
+
+$("redeemForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const points=Number($("rewardPoints").value);
+  const phone=$("rewardPhone").value.trim();
+  if(!Number.isInteger(points)||points<1) return toast("Enter a valid points amount.",true);
+  if(!/^0\d{10}$/.test(phone)) return toast("Enter an 11-digit Nigerian phone number.",true);
+
+  const button=e.submitter;
+  setBusy(button,true,"Submitting…");
+  try{
+    const {error}=await sb.rpc("request_airtime_redemption",{
+      p_network:$("network").value,
+      p_reward_type:$("rewardType").value,
+      p_phone:phone,
+      p_points:points
+    });
+    if(error) throw error;
+    toast("Redemption request submitted. Fulfilment is pending verification.");
+    $("redeemForm").reset();
+    await loadWallet();
+  }catch(error){
+    toast(error.message||"Redemption request failed.",true);
+  }finally{
+    setBusy(button,false);
+  }
+});
+
+document.querySelectorAll("[data-plan]").forEach(button=>{
+  button.addEventListener("click",async()=>{
+    const plan=button.dataset.plan;
+    const amount=Number(button.dataset.amount);
+
+    const confirmed=confirm(
+      "Request "+plan.toUpperCase()+" membership for "+money(amount)+" per month? "+
+      "Payment is not complete until a provider confirms it."
+    );
+    if(!confirmed) return;
+
+    setBusy(button,true,"Creating request…");
+    try{
+      const {data,error}=await sb.rpc("create_membership_order",{
+        p_plan:plan,
+        p_amount:amount
+      });
+      if(error) throw error;
+
+      toast("Membership payment request created.");
+      alert("Order reference: "+(data?.order_id||data?.id||"Created")+
+        "\n\nA payment provider must be configured to collect payment and confirm this order. Your membership has not been activated yet.");
+    }catch(error){
+      toast(error.message||"Could not create membership order.",true);
+    }finally{
+      setBusy(button,false);
+    }
+  });
+});
+
+$("ticketForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const button=e.submitter;
+  setBusy(button,true,"Submitting…");
+  try{
+    const {error}=await sb.from("support_tickets").insert({
+      user_id:currentUser.id,
+      category:$("ticketCategory").value,
+      subject:$("ticketSubject").value.trim(),
+      message:$("ticketBody").value.trim()
+    });
+    if(error) throw error;
+    toast("Support ticket submitted.");
+    $("ticketForm").reset();
+    await loadTickets();
+  }catch(error){
+    toast(error.message||"Ticket submission failed.",true);
+  }finally{
+    setBusy(button,false);
+  }
+});
+
+async function loadTickets(){
+  if(!currentUser) return;
+  const {data,error}=await sb.from("support_tickets")
+    .select("id,category,subject,status,created_at")
+    .eq("user_id",currentUser.id)
+    .order("created_at",{ascending:false})
+    .limit(50);
+
+  if(error){
+    $("ticketList").textContent="Unable to load support tickets.";
+    return;
+  }
+  $("ticketList").innerHTML=!data?.length?"No tickets submitted yet.":
+    data.map(t=>`
+      <div style="padding:12px 0;border-bottom:1px solid var(--border)">
+        <div class="row"><strong>${escapeHTML(t.subject)}</strong>
+          <span class="pill">${escapeHTML(t.status)}</span></div>
+        <p class="small muted">${escapeHTML(t.category)} · ${escapeHTML(new Date(t.created_at).toLocaleString())}</p>
+      </div>`).join("");
+}
+
+function configureWhatsApp(){
+  const number=CONFIG.WHATSAPP_NUMBER.replace(/\D/g,"");
+  const link=$("whatsappLink");
+  if(number){
+    link.href="https://wa.me/"+number;
+  }else{
+    link.href="#";
+    link.addEventListener("click",e=>{
+      e.preventDefault();
+      toast("Add your official WhatsApp number in CONFIG first.",true);
+    });
+  }
+}
+
+async function loadAdmin(){
+  if(currentProfile?.role!=="admin") return;
+
+  const [users,withdrawals,tickets]=await Promise.all([
+    sb.from("profiles").select("id",{count:"exact",head:true}),
+    sb.from("withdrawal_requests").select("*").eq("status","pending").order("created_at",{ascending:true}),
+    sb.from("support_tickets").select("*").in("status",["open","in_progress"]).order("created_at",{ascending:true})
+  ]);
+
+  if(users.error||withdrawals.error||tickets.error){
+    toast("Admin data could not be loaded. Check database policies.",true);
+    return;
+  }
+
+  $("adminUsers").textContent=users.count??0;
+  $("adminWithdrawals").textContent=withdrawals.data.length;
+  $("adminTickets").textContent=tickets.data.length;
+
+  $("adminWithdrawalList").innerHTML=withdrawals.data.length?`
+    <table><thead><tr><th>Amount</th><th>Bank</th><th>Account name</th><th>Account number</th><th>Status</th></tr></thead>
+    <tbody>${withdrawals.data.map(w=>`<tr>
+      <td>${escapeHTML(money(w.amount))}</td>
+      <td>${escapeHTML(w.bank_name)}</td>
+      <td>${escapeHTML(w.account_name)}</td>
+      <td>${escapeHTML(w.account_number)}</td>
+      <td>${escapeHTML(w.status)}</td>
+    </tr>`).join("")}</tbody></table>`
+    :"No pending withdrawals.";
+
+  $("adminTicketList").innerHTML=tickets.data.length?`
+    <table><thead><tr><th>Category</th><th>Subject</th><th>Status</th><th>Created</th></tr></thead>
+    <tbody>${tickets.data.map(t=>`<tr>
+      <td>${escapeHTML(t.category)}</td>
+      <td>${escapeHTML(t.subject)}</td>
+      <td>${escapeHTML(t.status)}</td>
+      <td>${escapeHTML(new Date(t.created_at).toLocaleString())}</td>
+    </tr>`).join("")}</tbody></table>`
+    :"No open support tickets.";
+}
+
+/* ---------- Games ---------- */
+
+function renderGames(){
+  const markup=GAME_LIST.map(g=>`
+    <article class="card game-card">
+      <div class="game-icon">${g.icon}</div>
+      <h3>${g.name}</h3>
+      <p class="muted">${g.description}</p>
+      <button data-game="${g.id}">Play game</button>
+    </article>`).join("");
+
+  $("featuredGames").innerHTML=markup;
+  $("allGames").innerHTML=markup;
+
+  document.querySelectorAll("[data-game]").forEach(button=>{
+    button.addEventListener("click",()=>startGame(button.dataset.game));
+  });
+}
+
+$("closeGame").addEventListener("click",()=>{
+  clearInterval(gameTimer);
+  $("gamePanel").classList.add("hidden");
+});
+
+function startGame(id){
+  clearInterval(gameTimer);
+  gameState={};
+  $("gamePanel").classList.remove("hidden");
+  $("gameTitle").textContent=GAME_LIST.find(g=>g.id===id)?.name||"Game";
+  setPage("games");
+
+  if(id==="quiz") playQuiz();
+  else if(id==="speed") playSpeed();
+  else if(id==="number") playNumber();
+  else if(id==="memory") playMemory();
+  else if(id==="daily") playDaily();
+}
+
+function playQuiz(){
+  const questions=[
+    {q:"What is the capital of Nigeria?",a:["Lagos","Abuja","Kano","Ibadan"],correct:1},
+    {q:"How many sides does a hexagon have?",a:["Five","Six","Seven","Eight"],correct:1},
+    {q:"What is 12 × 8?",a:["86","92","96","108"],correct:2},
+    {q:"Which planet is known as the Red Planet?",a:["Venus","Mars","Jupiter","Mercury"],correct:1},
+    {q:"How many minutes are in two hours?",a:["100","110","120","140"],correct:2}
+  ];
+  gameState={questions:questions.sort(()=>Math.random()-.5).slice(0,5),index:0,score:0};
+  renderQuizQuestion();
+}
+
+function renderQuizQuestion(){
+  const s=gameState;
+  if(s.index>=s.questions.length){
+    return finishGame("quiz",s.score,"Correct answers: "+s.score+" of "+s.questions.length);
+  }
+  const q=s.questions[s.index];
+  $("gameArea").innerHTML=`
+    <p>Question ${s.index+1} of ${s.questions.length}</p>
+    <h3>${escapeHTML(q.q)}</h3>
+    ${q.a.map((a,i)=>`<button class="btn-secondary" data-answer="${i}">${escapeHTML(a)}</button>`).join("")}
+    <p class="muted">Correct: ${s.score}</p>`;
+
+  $("gameArea").querySelectorAll("[data-answer]").forEach(b=>{
+    b.addEventListener("click",()=>{
+      if(Number(b.dataset.answer)===q.correct) s.score++;
+      s.index++;
+      renderQuizQuestion();
+    });
+  });
+}
+
+function playSpeed(){
+  $("gameArea").innerHTML=`
+    <p>Tap the button as many times as possible in 10 seconds.</p>
+    <div class="game-number" id="tapScore">0</div>
+    <button id="tapButton" style="padding:25px 40px">TAP!</button>
+    <p id="tapTimer">10 seconds</p>`;
+
+  let score=0,remaining=10,started=false;
+  $("tapButton").addEventListener("click",()=>{
+    if(remaining<=0) return;
+    if(!started){
+      started=true;
+      gameTimer=setInterval(()=>{
+        remaining--;
+        $("tapTimer").textContent=remaining+" seconds";
+        if(remaining<=0){
+          clearInterval(gameTimer);
+          $("tapButton").disabled=true;
+          finishGame("speed",score,"Taps: "+score);
+        }
+      },1000);
+    }
+    score++;
+    $("tapScore").textContent=score;
+  });
+}
+
+function playNumber(){
+  const a=Math.floor(Math.random()*30)+10;
+  const b=Math.floor(Math.random()*20)+1;
+  gameState={answer:a+b};
+  $("gameArea").innerHTML=`
+    <p>Solve the number challenge.</p>
+    <div class="game-number">${a} + ${b} = ?</div>
+    <input id="numberAnswer" type="number" placeholder="Your answer">
+    <button id="checkNumber">Check answer</button>`;
+  $("checkNumber").addEventListener("click",()=>{
+    const correct=Number($("numberAnswer").value)===gameState.answer;
+    finishGame("number",correct?1:0,correct?"Correct answer!":"The correct answer was "+gameState.answer);
+  });
+}
+
+function playMemory(){
+  const symbols=["🍎","⭐","🚀","🎮","💎","🌙"];
+  const deck=[...symbols,...symbols].sort(()=>Math.random()-.5);
+  let opened=[],matched=0,moves=0,locked=false;
+
+  $("gameArea").innerHTML=`
+    <p>Match all six pairs.</p>
+    <p id="memoryMoves">Moves: 0</p>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-width:420px;margin:auto">
+    ${deck.map((s,i)=>`<button class="btn-secondary" data-card="${i}" style="height:65px;font-size:24px">?</button>`).join("")}
+    </div>`;
+
+  $("gameArea").querySelectorAll("[data-card]").forEach(button=>{
+    button.addEventListener("click",()=>{
+      const i=Number(button.dataset.card);
+      if(locked||button.dataset.done==="1"||opened.some(c=>c.i===i)) return;
+      button.textContent=deck[i];
+      opened.push({i,s:deck[i],button});
+      if(opened.length===2){
+        moves++;
+        $("memoryMoves").textContent="Moves: "+moves;
+        if(opened[0].s===opened[1].s){
+          opened.forEach(c=>{c.button.dataset.done="1";c.button.disabled=true;});
+          matched++;
+          opened=[];
+          if(matched===symbols.length) finishGame("memory",Math.max(1,12-moves),"All pairs matched in "+moves+" moves.");
+        }else{
+          locked=true;
+          setTimeout(()=>{
+            opened.forEach(c=>c.button.textContent="?")
+            opened=[];
+            locked=false;
+          },650);
+        }
+      }
+    });
+  });
+}
+
+function playDaily(){
+  const a=Math.floor(Math.random()*50)+20;
+  const b=Math.floor(Math.random()*20)+5;
+  const c=Math.floor(Math.random()*10)+1;
+  gameState={answer:a+b-c};
+  $("gameArea").innerHTML=`
+    <p>Daily number puzzle</p>
+    <div class="game-number">${a} + ${b} − ${c} = ?</div>
+    <input id="dailyAnswer" type="number" placeholder="Your answer">
+    <button id="checkDaily">Submit answer</button>
+    <p class="muted">Completing this screen does not itself grant a reward.</p>`;
+  $("checkDaily").addEventListener("click",()=>{
+    const correct=Number($("dailyAnswer").value)===gameState.answer;
+    finishGame("daily",correct?1:0,correct?"Correct!":"The correct answer was "+gameState.answer);
+  });
+}
+
+function finishGame(gameId,score,message){
+  clearInterval(gameTimer);
+  $("gameArea").innerHTML=`
+    <div class="game-number">${score}</div>
+    <h3>${escapeHTML(message)}</h3>
+    <p class="muted">Your game has ended. Rewards require a server-verified result.</p>
+    <button id="playAgain">Play again</button>`;
+
+  $("playAgain").addEventListener("click",()=>startGame(gameId));
+
+  /*
+    This frontend deliberately does NOT award points or cash.
+    A secure server-side game submission endpoint must validate:
+    game session, timing, attempts, score limits, daily limits,
+    account eligibility and fraud rules before crediting rewards.
+  */
+}
+
+async function initialise(){
+  if(!readyConfig()) return;
+
+  const {data,error}=await sb.auth.getSession();
+  if(error){
+    showAuthMessage(error.message,true);
+    return;
+  }
+
+  if(data.session){
+    currentUser=data.session.user;
+    await bootUser();
+  }
+
+  sb.auth.onAuthStateChange((event,session)=>{
+    if(event==="SIGNED_OUT"){
+      currentUser=null;
+      currentProfile=null;
+      showLogin();
+    }else if(event==="PASSWORD_RECOVERY"){
+      toast("Password recovery session opened.");
+    }
+  });
+}
+
+initialise();
+</script>
+</body>
+</html>
