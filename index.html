@@ -508,17 +508,24 @@ function setBusy(button,busy,label){
 
 function readyConfig(){
   if(!window.supabase){
-    toast("Supabase library failed to load. Check your internet connection.",true);
+    showAuthMessage("Supabase library failed to load. Check your internet connection.",true);
     return false;
   }
-  if(!CONFIG.SUPABASE_URL.startsWith("https://") ||
-     CONFIG.SUPABASE_KEY.includes("PASTE_YOUR")){
-    showAuthMessage("Add your Supabase project URL and publishable key in the CONFIG section of index.html.",true);
+  const key = CONFIG.SUPABASE_KEY || "";
+  const looksValid = key.startsWith("sb_publishable_") || key.split(".").length === 3;
+  if(!CONFIG.SUPABASE_URL.startsWith("https://") || !looksValid){
+    showAuthMessage("Your Supabase key is incomplete. Paste the full anon/publishable key into CONFIG.",true);
     return false;
   }
-  if(!sb) sb=window.supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_KEY);
+  try{
+    if(!sb) sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+  }catch(err){
+    showAuthMessage("Supabase setup error: "+err.message,true);
+    return false;
+  }
   return true;
 }
+
 
 function setPage(name){
   document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
