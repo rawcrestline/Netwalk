@@ -62,6 +62,7 @@ a{color:var(--cyan)}
 details.setup{margin-top:14px;border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:#0d1426}
 details.setup summary{cursor:pointer;font-size:13px;color:var(--cyan)}
 details.setup textarea{font-size:12px}
+#debugLog{white-space:pre-wrap;word-break:break-word;font-size:11px;line-height:1.4;max-height:220px;overflow:auto;background:#050813;border:1px solid var(--border);border-radius:8px;padding:8px;margin:8px 0;color:#b8f7c8;font-family:ui-monospace,Menlo,Consolas,monospace}
 #auth{
   min-height:100vh;display:grid;place-items:center;padding:20px;
   background:radial-gradient(ellipse at top,#172955 0%,var(--bg) 65%);
@@ -155,6 +156,12 @@ footer{padding:20px;color:var(--muted);font-size:12px;text-align:center}
     </div>
 
     <div id="connStatus" class="muted">Checking connection…</div>
+    <details class="setup" id="debugBox" open style="margin:0 0 10px">
+      <summary>Debug log</summary>
+      <pre id="debugLog">Waiting for page script…</pre>
+      <button type="button" class="btn-secondary" id="diagBtn" style="width:100%">Run full diagnostics</button>
+      <button type="button" class="btn-secondary" id="copyLogBtn" style="width:100%;margin-top:8px">Copy log</button>
+    </details>
     <div id="authMessage" aria-live="polite"></div>
 
     <form id="authForm">
@@ -198,6 +205,21 @@ footer{padding:20px;color:var(--muted);font-size:12px;text-align:center}
     </p>
   </div>
 </section>
+
+<script>
+window.__dbg=[];
+function dbg(msg){
+  var line=new Date().toLocaleTimeString()+"  "+msg;
+  window.__dbg.push(line);
+  var el=document.getElementById("debugLog");
+  if(el){el.textContent=window.__dbg.join("\n");el.scrollTop=el.scrollHeight;}
+  try{console.log("[ZELTRIQ]",msg);}catch(e){}
+}
+window.addEventListener("error",function(e){dbg("JS ERROR: "+e.message+" ("+String(e.filename||"").split("/").pop()+":"+e.lineno+")");});
+window.addEventListener("unhandledrejection",function(e){dbg("PROMISE ERROR: "+((e.reason&&e.reason.message)||e.reason));});
+document.addEventListener("click",function(e){var b=e.target.closest&&e.target.closest("button");if(b)dbg("click -> "+(b.id||b.textContent.trim().slice(0,25)));},true);
+dbg("Page script running. Protocol="+location.protocol+" Host="+(location.host||"(none)"));
+</script>
 
 <section id="app" class="hidden">
   <header class="topbar">
@@ -475,7 +497,7 @@ footer{padding:20px;color:var(--muted);font-size:12px;text-align:center}
 */
 const CONFIG = {
   SUPABASE_URL: "https://rrwwoghnwfabqkqhgrsk.supabase.co",
-  SUPABASE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJyd3dvZ2hud2ZhYnFrcWhncnNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAzNTI1MzksImV4cCI6MjEwNTkyODUzOX0.86vkPZcoAhqWJEIOJLWlSGe1fRIARNUcp090LGWRjPo",
+  SUPABASE_KEY: "PASTE_FULL_ANON_KEY_HERE",
   WHATSAPP_NUMBER: "", // Example: 2348012345678
   SITE_URL: window.location.origin
 };
@@ -532,6 +554,7 @@ function money(value){
 }
 
 function toast(message,isError=false){
+  dbg((isError?"TOAST (error): ":"TOAST: ")+message);
   $("toast").textContent=message;
   $("toast").classList.remove("hidden");
   $("toast").style.borderColor=isError?"#ff647c":"#40577c";
@@ -540,6 +563,7 @@ function toast(message,isError=false){
 }
 
 function showAuthMessage(message,isError=false){
+  if(message) dbg((isError?"MESSAGE (error): ":"MESSAGE: ")+message);
   $("authMessage").className=isError?"error":"success";
   $("authMessage").textContent=message;
 }
@@ -565,6 +589,7 @@ function keyLooksValid(key){
 
 function friendlyAuthError(error){
   const msg=(error && error.message) || "Something went wrong.";
+  dbg("RAW AUTH ERROR: "+msg+" | status="+(error&&error.status)+" | name="+(error&&error.name));
   const low=msg.toLowerCase();
   if(low.includes("invalid api key") || low.includes("apikey")){
     return "Supabase rejected your API key. Open 'Connection settings' below and paste the FULL anon/publishable key.";
@@ -599,8 +624,8 @@ function loadScript(src){
 const libReady=(async()=>{
   for(const src of LIB_URLS){
     if(window.supabase && window.supabase.createClient) return true;
-    try{ await loadScript(src); }catch(e){ console.warn(e.message); }
-    if(window.supabase && window.supabase.createClient) return true;
+    try{ dbg("Loading library: "+src); await loadScript(src); }catch(e){ dbg("Library FAILED: "+e.message); }
+    if(window.supabase && window.supabase.createClient){ dbg("Library loaded OK"); return true; }
   }
   return !!(window.supabase && window.supabase.createClient);
 })();
@@ -1364,9 +1389,63 @@ function finishGame(gameId,score,message){
   */
 }
 
+/* ---------- Diagnostics ---------- */
+
+async function runDiagnostics(){
+  dbg("=== DIAGNOSTICS START ===");
+  dbg("Origin: "+location.origin+" | UA: "+navigator.userAgent.slice(0,90));
+  if(location.protocol==="file:") dbg("NOTE: page opened from file:// . Some phone viewers block network calls here. Host it (Netlify / GitHub Pages / Vercel) or open in Chrome/Safari.");
+  if(/Claude|claudeusercontent|artifact/i.test(location.href+navigator.userAgent)) dbg("NOTE: looks like a Claude preview. Previews BLOCK requests to supabase.co. Download the file and host it elsewhere.");
+  try{localStorage.setItem("__t","1");localStorage.removeItem("__t");dbg("localStorage: OK");}catch(e){dbg("localStorage: BLOCKED ("+e.message+") - sessions cannot persist");}
+  const lib=await libReady;
+  dbg("Supabase library: "+(lib?"loaded":"FAILED on all CDNs (blocked or offline)"));
+
+  const url=(CONFIG.SUPABASE_URL||"").trim().replace(/\/$/,"");
+  const key=(CONFIG.SUPABASE_KEY||"").trim();
+  dbg("URL in use: "+url);
+  dbg("Key in use: length="+key.length+", valid shape="+keyLooksValid(key)+", starts with "+key.slice(0,14)+"...");
+  const isJwt=key.split(".").length===3;
+  if(isJwt){
+    try{
+      const payload=JSON.parse(atob(key.split(".")[1].replace(/-/g,"+").replace(/_/g,"/")));
+      dbg("Key decoded: role="+payload.role+", project="+payload.ref);
+      if(payload.role==="service_role") dbg("!!! SERVICE_ROLE key detected. Use the anon/publishable key instead.");
+      let host=""; try{host=new URL(url).hostname.split(".")[0];}catch(e){}
+      if(payload.ref && host && payload.ref!==host) dbg("!!! MISMATCH: key is for project '"+payload.ref+"' but URL is '"+host+"'. Use the URL and key from the SAME project.");
+    }catch(e){dbg("Could not decode key: "+e.message);}
+  }
+  if(!url||!key){dbg("URL or key empty - stop.");return;}
+
+  const headers={apikey:key,"Content-Type":"application/json"};
+  if(isJwt) headers.Authorization="Bearer "+key;
+
+  async function probe(name,path,opts){
+    try{
+      const r=await fetch(url+path,Object.assign({headers},opts||{}));
+      let t=""; try{t=(await r.text()).slice(0,170);}catch(e){}
+      dbg(name+" -> HTTP "+r.status+" "+t);
+    }catch(e){
+      dbg(name+" -> NETWORK FAIL: "+e.message+" (blocked by CSP/ad-blocker/offline, or wrong URL)");
+    }
+  }
+  await probe("1 Auth settings","/auth/v1/settings");
+  await probe("2 Login test (expect 400 invalid_credentials = key OK)","/auth/v1/token?grant_type=password",{method:"POST",body:JSON.stringify({email:"diag@example.invalid",password:"wrongpass123"})});
+  await probe("3 profiles table","/rest/v1/profiles?select=id&limit=1");
+  await probe("4 wallets table","/rest/v1/wallets?select=user_id&limit=1");
+  dbg("=== DIAGNOSTICS END === Tap 'Copy log' and send it to me.");
+}
+
+$("diagBtn").addEventListener("click",runDiagnostics);
+$("copyLogBtn").addEventListener("click",async()=>{
+  const text=window.__dbg.join("\n");
+  try{await navigator.clipboard.writeText(text);toast("Log copied.");}
+  catch(e){prompt("Copy this log:",text);}
+});
+
 /* ---------- Startup ---------- */
 
 async function initialise(){
+  dbg('Main script started. Key shape valid: '+keyLooksValid(CONFIG.SUPABASE_KEY));
   bindGameButtons();
   await checkConnection();
 
